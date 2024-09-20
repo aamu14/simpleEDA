@@ -1,0 +1,455 @@
+---
+author: "Nur Muhammad Herlim"
+output:
+  html_document:
+    df_print: paged
+---
+# Introduction
+This is a transnational data set which contains all the transactions occurring between 01/12/2010 and 09/12/2011 for a UK-based and registered non-store online 
+retail.
+
+# Data set Column Description
+
+|Variable Name|Role|Type|Description|Units|Missing Values|
+|:---------:|:---------:|:---------:|:---------:|:---------:|:---------:|
+InvoiceNo|ID|	Categorical|a 6-digit integral number uniquely assigned to each transaction. If this code starts with letter 'c', it indicates a cancellation| |no|
+StockCode|ID|Categorical|	a 5-digit integral number uniquely assigned to each distinct product|	|no|
+Description|Feature|Categorical|product name|	|no|
+Quantity|Feature|Integer|the quantities of each product (item) per transaction|	|no|
+InvoiceDate|Feature|Date|the day and time when each transaction was generated| |no|
+UnitPrice|Feature|Continuous|product price per unit| sterling|no|
+CustomerID|Feature|Categorical|	a 5-digit integral number uniquely assigned to each customer|	|no|
+Country|Feature|Categorical|	the name of the country where each customer resides|	|no|
+
+
+# Data Preparations
+- Loading the dataset:
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(skimr)
+library(cowplot)
+```
+
+
+- Initial data exploration:
+```{r}
+library(readxl)
+retail_data<- read_excel("D:/test teknikal kerja/kita lulus/pakai R/online+retail/Online Retail.xlsx")
+head(retail_data)
+```
+
+Let's try to check some missing values in the dataset, and also check for the structure and statistical descriptive.
+```{r}
+colSums(is.na(retail_data))
+# Chech data structure
+str(retail_data)
+# Check statistical descriptive
+summary(retail_data)
+# Check for missing values (NA)
+colSums(is.na(retail_data))
+```
+
+- Handling Missing Values:
+```{r}
+# Percentage of missing CustomerID values
+missing_customerID <- sum(is.na(retail_data$CustomerID)) / nrow(retail_data) * 100
+cat("Percentage of missing CustomerID values:", missing_customerID, "%\n\n")
+
+#make a new table for a cleaned data
+retail_clean <- retail_data
+# Verify that no NA values exist in important columns now
+cat("Sums of Missing Values\n\n")
+colSums(is.na(retail_clean))
+```
+
+- Create a TotalSales column by multiply quantity with unitprice and start to
+convert the invoicedate column to month-day-year hour-minute formats.
+```{r}
+# Create a new column for TotalPrice
+retail_clean1 <- retail_clean %>%
+  mutate(TotalSales = Quantity * UnitPrice)
+
+# Convert InvoiceDate to a datetime object for time series analysis
+retail_clean$InvoiceDate <- as.POSIXct(retail_clean$InvoiceDate, format = "%m/%d/%Y %H:%M")
+```
+
+- Visualization of customer for all transaction events (not cancelled), 
+cancelled transactions, free items, discounts, etc.) for better understanding 
+about where the customer come from.
+```{r}
+par(mfrow=c(1,2))
+# Group by Country and count unique customers
+customer_base_per_country <- retail_clean1 %>%
+  group_by(Country) %>%
+  summarise(UniqueCustomers = n_distinct(CustomerID)) %>%
+  arrange(desc(UniqueCustomers))
+# Group by Country and count total transactions
+transactions_per_country <- retail_clean1 %>%
+  group_by(Country) %>%
+  summarise(TotalTransactions = n()) %>%
+  arrange(desc(TotalTransactions))
+
+# Visualize customer base per country using a bar chart
+plot1<- ggplot(customer_base_per_country, aes(x = reorder(Country, -UniqueCustomers), y = UniqueCustomers)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() + # Flip the chart for better readability
+  labs(title = "Unique Customer by Country", x = "Country", y = "Number of Unique Customers") +
+  theme(plot.title = element_text(size = 10))
+#Visualize transactions per country using a bar chart
+plot2<-ggplot(transactions_per_country, aes(x = reorder(Country, -TotalTransactions), y = TotalTransactions)) +
+  geom_bar(stat = "identity", fill = "darkgreen") +
+  coord_flip() + # Flip the chart for better readability
+  labs(title = "Total Transactions by Country", x = "Country", y = "Number of Transactions") +
+  theme(plot.title = element_text(size = 10)) # Change the font size of the title here
+# plot two plots in a grid
+plot_grid(plot1, plot2)
+```
+
+As you can see, the top three countries for both categories are consistently 
+the UK, Germany, and France. Interestingly, EIRE (Ireland) has a low number 
+of unique customers but ranks fourth in total transactions. This suggests that 
+there maybe loyal customers making multiple purchases.
+
+
+Since most transactions come from the UK and are an outlier, let's take a look 
+at other countries besides the UK for more detailed insights.
+
+```{r}
+# Group by Country and count total transactions excluding UK
+transactions_per_country_no_uk <- retail_clean1 %>%
+  filter(Country != "United Kingdom") %>%  # Exclude UK
+  group_by(Country) %>%
+  summarise(TotalTransactions = n()) %>%
+  arrange(desc(TotalTransactions))
+
+# Visualize transactions per country excluding UK
+plot3<-ggplot(transactions_per_country_no_uk, aes(x = reorder(Country, -TotalTransactions), y = TotalTransactions)) +
+  geom_bar(stat = "identity", fill = "darkgreen") +
+  coord_flip() +  # Flip for better readability
+  labs(title = "Total Transactions by Country (Excluding UK)", x = "Country", y = "Number of Transactions") +
+  theme(plot.title = element_text(size = 6))
+# Group by Country and count unique customers excluding UK
+customer_base_per_country_no_uk <- retail_clean %>%
+  filter(Country != "United Kingdom") %>%  # Exclude UK
+  group_by(Country) %>%
+  summarise(UniqueCustomers = n_distinct(CustomerID)) %>%
+  arrange(desc(UniqueCustomers))
+
+# Visualize customer base per country excluding UK
+plot4<-ggplot(customer_base_per_country_no_uk, aes(x = reorder(Country, -UniqueCustomers), y = UniqueCustomers)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip for better readability
+  labs(title = "Unique Customer Base by Country (Excluding UK)", x = "Country", y = "Number of Unique Customers") +
+  theme(plot.title = element_text(size = 6))
+
+# plot two plots in a grid
+plot_grid(plot4, plot3)
+```
+
+Now we can see a more detailed graph, which shows that EIRE has fewer than 
+25 unique customers, yet over 7,500 transactions occurred. We may need further 
+analysis to determine whether there are specific loyal customers driving these 
+transactions.
+
+
+Next, we will examine what times customers are making their transactions.
+
+```{r}
+# Tambahkan kolom Jam Transaksi berdasarkan jam dari InvoiceDate
+retail_clean1 <- retail_clean1 %>%
+  mutate(
+    Hour = hour(InvoiceDate)
+  )
+
+# Hitung jumlah transaksi per jam
+transactions_per_hour <- retail_clean1 %>%
+  group_by(Hour) %>%
+  summarise(TotalTransactions = n()) %>%
+  arrange(Hour)
+
+# Visualisasi distribusi transaksi per jam
+ggplot(transactions_per_hour, aes(x = Hour, y = TotalTransactions, fill = as.factor(Hour))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Distribution of Transactions per hour", x = "Hours", y = "Total Transactions") +
+  scale_fill_viridis_d(name = "Hours") +
+  theme_minimal()
+```
+
+- Checking for anomalies in data:
+  - Negative Quantities: Orders with negative quantities could represent 
+  cancellations or returns. We’ll check and handle them.
+  - Unusual Unit Prices: We also want to check for any unusual prices, 
+  such as negative or zero values.
+
+We will not remove the NA values from the Descriptions because there are many 
+categories with missing values, and their Unit Price is 0. Consequently, 
+all unwanted values in the descriptions will be eliminated when we address 
+the Unit Price of 0, as they do not contribute to sales calculations.
+
+```{r}
+# Checking for zero prices
+zero_prices <- retail_clean %>% filter(UnitPrice == 0)
+cat("Number of transactions with zero prices:", nrow(zero_prices), "\n")
+
+# Remove transactions with zero prices (keep negative prices)
+retail_clean1 <- retail_clean1 %>%
+  filter(UnitPrice != 0)
+#remove customer id
+retail_clean1 <- retail_clean1 %>%
+  select(-CustomerID)
+# Verify that no NA values exist in important columns now
+colSums(is.na(retail_clean1))
+```
+
+It can be seen that there are transactions with a price of 0, indicating free 
+products. Free products will not be included in the subsequent analysis. There 
+are 2515 negative values in the UnitPrice column that will be used for further 
+analysis and will not be removed.
+
+Additionally, there are 132,605 empty (NA) entries in the CustomerID column. 
+This will not affect the analysis, so these entries will be removed from the table.
+
+Now, we will conduct a deeper analysis of the cancelled transactions.
+ditahap ini, produk akan dibagi menjadi tiga:
+1. Produk yang mempunyai huruf A diawal InvoiceNo akan diberi label Adjusted
+2. Produk yang mempunyai huruf C diawal InvoiceNo akan diberi label Cancelled
+3. Selain itu, akan diberi label Not Cancelled
+```{r}
+# Add a new column to mark cancellations and adjustments.
+retail_clean1 <- retail_clean1 %>%
+  mutate(IsCancelled = ifelse(grepl("^C", InvoiceNo), "Cancelled", 
+                              ifelse(grepl("^A", InvoiceNo), "Adjusted", "Not Cancelled")))
+
+# Count the number of transactions based on cancellation status.
+cancelled_summary <- retail_clean1 %>%
+  group_by(IsCancelled) %>%
+  summarise(Count = n())
+
+# Show summary
+print(cancelled_summary)
+
+# Visualize the distribution of transactions based on cancellation status and adjustments.
+ggplot(cancelled_summary, aes(x = IsCancelled, y = Count, fill = IsCancelled)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Transaction Distribution Based on Cancellation Status and Adjustments", 
+       x = "Transaction Status", y = "Total Transaction") +
+  scale_fill_manual(values = c("Cancelled" = "red", "Adjusted" = "blue", "Not Cancelled" = "green")) +
+  theme_minimal()
+```
+
+There are 3 products labeled as adjusted, 9,288 products that were cancelled, 
+and 530,103 products that were sold. For a clearer picture, please refer to the 
+visualization above.
+
+
+Because there are several cancelled products, we will take a quick look to see 
+whether these cancelled products affect total sales.
+```{r}
+#products contribute most to sales
+top30_product_sales <- retail_clean1 %>%
+  select(StockCode, Description, TotalSales)%>%
+  group_by(StockCode, Description, TotalSales) %>%
+  filter(rank(desc(TotalSales)) <= 30) %>%
+  arrange(desc(TotalSales)) %>%
+  head(30)
+head(top30_product_sales, 30)
+```
+It can be seen in the top 30 highest selling prices that there are several items 
+such as bad adjustment debt, postage, Amazon fees, and manuals that do not 
+actually contribute to product sales. Of course, these need to be eliminated. 
+However, we will first look to see if they are still related to the value of the cancelled products
+
+
+```{r}
+# Selecting top total sales with respective invoices tocheck for cancelled orders
+check_canceled <- retail_clean1 %>%
+  select(InvoiceNo, StockCode, Description, Quantity, TotalSales, IsCancelled)%>%
+  filter(abs(TotalSales) %in% c(168469.60,77183.60,38970.00,13541.33,11062.06,8142.75	,	7144.72	,	6539.40	,	6539.40,	4992.00,4921.50	,	4781.60	,	4632.00	,	4522.50	,	4505.17	,	4401.00	,	4287.63	,	4254.50	,	4176.00	,	4161.06	,4161.06	,	4121.64	,3949.32	,	3861.00	,	3828.00	,	3825.36	,	3794.40	,	3700.00	,	3651.60	,	3621.00)) %>%
+  arrange(desc(abs(TotalSales)))
+check_canceled
+
+
+```
+
+It turns out that some of those top products are indeed cancelled items, bad adjustment debt, postage, Amazon fees, and manuals. Therefore, they need to be removed from the data.
+```{r}
+
+retail_clean1 <- retail_clean1 %>%
+  filter(!StockCode %in% c("DOT", "POST", "M", "AMAZONFEE", "B"))
+
+# Daftar InvoiceNo yang ingin dihapus
+invoices_to_remove <- c("581483","C581484",	"541431",	"556444","C541433",	"540815",	"C550456",	"540818",	"C550456",	"540815",	"C550456")
+
+# Menghapus baris di mana InvoiceNo berada dalam daftar
+retail_clean1 <- retail_clean1 %>%
+  filter(!(InvoiceNo %in% invoices_to_remove))
+```
+
+After that, perform another check for the top 30 products.
+```{r}
+#Check again
+#products contribute most to sales
+top30_product_sales <- retail_clean1 %>%
+  select(StockCode, Description, TotalSales)%>%
+  group_by(StockCode, Description, TotalSales) %>%
+  filter(rank(desc(TotalSales)) <= 30) %>%
+  arrange(desc(TotalSales)) %>%
+  head(30)
+head(top30_product_sales, 30)
+```
+
+At the very least, the products that are likely to contribute significantly to sales are now free from irrelevant data. However, I would like to conduct a further check by searching for data that exhibits the same patterns as the data that has been removed for all rows.
+```{r}
+library(dplyr)
+# Identify pairs with opposite quantities and matching total sales
+similar_pattern <- retail_clean1 %>%
+  group_by(StockCode) %>%
+  filter(Quantity == -lead(Quantity) | Quantity == -lag(Quantity)) %>%
+  filter(abs(TotalSales) == abs(lead(TotalSales)) | abs(TotalSales) == abs(lag(TotalSales))) %>%
+  ungroup()
+
+# Remove identified matching pairs from the original dataset
+retail_clean_filtered <- retail_clean1 %>%
+  anti_join(similar_pattern, by = c("InvoiceNo", "StockCode", "Quantity", "TotalSales"))
+```
+
+The above code has removed indications of data input errors, preventing items that should have been cancelled from being recorded as not cancelled. Additionally, data will also be removed for all cancelled items (sample items, discounted items, and similar).
+
+```{r}
+# Menghapus semua baris dengan status "Cancelled"
+retail_clean_filtered <- retail_clean_filtered %>%
+  filter(IsCancelled != "Cancelled")
+
+# Tampilkan dataset yang sudah difilter
+summary(retail_clean_filtered)
+```
+It can be seen from the summary above that the data is now clean of all cancelled products, mislabelled items, and other factors that do not contribute to sales.
+
+# Finalized Result of Exploratory Data Analysis (EDA):
+
+## Top 10 Selling Items:
+```{r}
+
+# Top 10 most sold items based on Quantity
+top_items <- retail_clean_filtered %>%
+  group_by(Description) %>%
+  summarise(TotalQuantity = sum(Quantity)) %>%
+  arrange(desc(TotalQuantity)) %>%
+  head(10)
+
+ggplot(top_items, aes(x = reorder(Description, TotalQuantity), y = TotalQuantity)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  geom_text(aes(label = TotalQuantity), hjust = 1.2) +  # Menambahkan angka pada bar
+  labs(title = "Top 10 Selling Items", x = "Item", y = "Quantity Sold") +
+  theme_minimal()
+```
+
+The image above shows the top 10 items that have been sold the most/most purchased by customers. The highest sales are led by the product 'World War 2 Gliders ASSTD Designs,' which sold 54,903 units.
+
+Next, we will examine the top 10 products with the highest sum of total sales value.
+```{r}
+
+# Top 10 products contribute most to sales
+top10_product_sales <- retail_clean_filtered %>%
+  select(StockCode, Description, TotalSales) %>%
+  group_by(StockCode, Description) %>%  # Group by StockCode and Description only
+  summarise(TotalSales = sum(TotalSales, na.rm = TRUE)) %>%  # Summarize total sales
+  arrange(desc(TotalSales)) %>%
+  head(10)
+
+# Bar chart visualization
+ggplot(top10_product_sales, aes(x = reorder(Description, TotalSales), y = TotalSales)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  geom_text(aes(label = scales::dollar(TotalSales, prefix = "£")), hjust = 1.2, color = "white") +  # Angka di dalam bar
+  labs(title = "Top 10 Products by Total Sales", x = "Product", y = "Total Sales (£)") +
+  theme_minimal()
+
+```
+
+It can be seen that the product 'Regency Cakestand 3 Tier' has the highest total sales value at £172,060.
+
+## Sales Trend Over Time:
+
+Previously, we will separate the year, month, and day into their own individual columns.
+```{r}
+# Separate the InvoiceDate column into Year, Month, and Day.
+retail_clean_filtered <- retail_clean_filtered %>%
+  mutate(Year = format(as.Date(InvoiceDate), "%Y"),   # For Year
+         Month = format(as.Date(InvoiceDate), "%m"),  # For Month
+         Day = format(as.Date(InvoiceDate), "%d"))    # For Day
+
+# Check the results of the separated columns
+head(retail_clean_filtered)
+```
+
+Now, let's take a look at the daily and monthly sales trends:
+```{r}
+# Calculate Sales Trends
+sales_trend <- retail_clean_filtered %>%
+  mutate(Date = as.Date(InvoiceDate)) %>%
+  group_by(Date) %>%
+  summarise(DailySales = sum(TotalSales, na.rm = TRUE))
+
+# Determine Dates with Highest and Lowest Sales
+max_sales <- sales_trend %>% filter(DailySales == max(DailySales, na.rm = TRUE))
+min_sales <- sales_trend %>% filter(DailySales == min(DailySales, na.rm = TRUE))
+
+# Visualize Daily Sales Trends
+ggplot(sales_trend, aes(x = Date, y = DailySales)) +
+  geom_line(color = "blue") +
+  geom_point(data = max_sales, aes(x = Date, y = DailySales), color = "red", size = 3, shape = 16) +
+  geom_text(data = max_sales, aes(x = Date, y = DailySales, label = paste("Max: £", scales::dollar(DailySales, prefix = ""))), vjust = -0.5, color = "red") +
+  geom_point(data = min_sales, aes(x = Date, y = DailySales), color = "black", size = 3, shape = 16) +
+  geom_text(data = min_sales, aes(x = Date, y = DailySales, label = paste("Min: £", scales::dollar(DailySales, prefix = ""))), vjust = 1.25, color = "black") +
+  labs(title = "Sales Trend Over Time", x = "Date", y = "Total Sales (£)") +
+  theme_minimal()
+
+#-----------------------------------------------------------------------------------------------
+# Ensure Year and Month Columns are Character or Factor Types
+retail_clean_filtered <- retail_clean_filtered %>%
+  mutate(Year = as.character(Year), 
+         Month = as.character(Month))
+
+# Filter Data from January 2010 to December 2011
+filtered_data <- retail_clean_filtered %>%
+  filter((Year == "2010" & Month >= "01" & Month <= "12") |
+         (Year == "2011" & Month >= "01" & Month <= "12"))
+
+# Combine Year and Month into a YearMonth Column
+filtered_data <- filtered_data %>%
+  mutate(YearMonth = paste(Year, Month, sep = "-"))
+
+# Calculate Total Sales per Month
+monthly_sales <- filtered_data %>%
+  group_by(YearMonth) %>%
+  summarise(MonthlySales = sum(TotalSales, na.rm = TRUE))
+
+# Sort by YearMonth for Accurate Visualization
+monthly_sales <- monthly_sales %>%
+  arrange(ymd(paste(YearMonth, "01", sep = "-")))
+# Visualize Monthly Trends
+ggplot(monthly_sales, aes(x = ymd(paste(YearMonth, "01", sep = "-")), y = MonthlySales)) +
+  geom_line(color = "blue") +
+  geom_point(color = "blue", size = 3) +
+  labs(title = "Monthly Sales Trend from Desember 2010 to December 2011", x = "Months", y = "Total Sales (£)") +
+  theme_minimal() +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "1 month")
+```
+
+1. Daily Sales
+  - It can be seen that the trend is quite fluctuating, peaking at the end of 2011, likely due to the upcoming New Year and Christmas celebrations. In terms of daily sales values, the lowest daily sales recorded is £3,450.36, while the highest is £111,434.
+  
+2. Monthly Sales
+  - For monthly sales, there is a slight bias due to the data for December 2011 not covering a full month, which makes the data a bit skewed. However, overall, the peak sales occur in November 2011.
+  
+
+# Conclusion
+1. The majority of buyers come from the UK, which is expected as transactions are conducted in sterling, the currency of the UK.
+2. An interesting observation from the customer analysis by country of origin is the potential presence of loyal customers from EIRE (Ireland), indicated by the low number of unique customers but a high volume of transactions. This warrants a deeper analysis of customer behavior.
+3. Overall, sales are quite fluctuating, peaking in November 2011. This is sensitive to missing and incomplete data. One contributing factor is the high number of transaction records that do not significantly impact overall sales.
+4. A deeper analysis of customer behavior is necessary to gain more accurate insights that can be used for making larger-scale decisions.
