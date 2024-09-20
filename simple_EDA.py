@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Online Retail Dataset EDA",
     layout="wide"
 )
-st.title('Online Retail Dataset EDA')
+st.title('Online Retail Dataset Exploratory Data Analysis (EDA)')
 url1 = "https://archive.ics.uci.edu/dataset/352/online+retail"
 
 path_to_html = "rmd.html" 
