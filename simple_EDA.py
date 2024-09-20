@@ -13,12 +13,14 @@ st.set_page_config(
 st.title('Online Retail Dataset EDA')
 
 import streamlit.components.v1 as components
-path_to_html = "Nur-Muhammad-Herlim---KitaLulus-Technical-Test--Data-Analyst-Intern-.html" 
+path_to_html = "rmd.html" 
 
 with open(path_to_html,'r') as f: 
     html_data = f.read()
 
 # Show in webpage
-st.header("Show an external HTML")
-
+st.header("R Markdown Result")
+st.markdown("""
+In this analysis, I'm using R and R Markdown to create an interactive HTML report by knitting the document. This approach allows for easier visualization of results compared to running the R code directly in Streamlit.
+""")
 st.components.v1.html(html_data, scrolling=True, height=17500)
