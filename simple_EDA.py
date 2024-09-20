@@ -14,4 +14,4 @@ with open(path_to_html,'r') as f:
 # Show in webpage
 st.header("Show an external HTML")
 
-st.components.v1.html(html_data, scrolling=True, height=1000, width= 1000)
+st.components.v1.html(html_data, scrolling=True, height=1000)
