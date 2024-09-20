@@ -5,6 +5,13 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
+# Configure
+st.set_page_config(
+    page_title="Online Retail Dataset EDA",
+    layout="wide"
+)
+st.title('Online Retail Dataset EDA')
+
 import streamlit.components.v1 as components
 path_to_html = "Nur-Muhammad-Herlim---KitaLulus-Technical-Test--Data-Analyst-Intern-.html" 
 
